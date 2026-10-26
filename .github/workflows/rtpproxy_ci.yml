@@ -430,18 +430,39 @@ jobs:
         dry-run: false
         language: c
         sanitizer: ${{ matrix.sanitizer }}
+    - name: Build CIFuzz runner
+      run: |
+        git clone --depth 1 --filter=blob:none --sparse https://github.com/google/oss-fuzz.git "${RUNNER_TEMP}/oss-fuzz"
+        git -C "${RUNNER_TEMP}/oss-fuzz" sparse-checkout set infra
+        docker build -t cifuzz-run-fuzzers -f "${RUNNER_TEMP}/oss-fuzz/infra/run_fuzzers.Dockerfile" "${RUNNER_TEMP}/oss-fuzz/infra"
+
+    - name: Install host signal tracer
+      run: |
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends -y bpftrace
+
+    # Equivalent of google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master,
+    # run from a shell step so the signal tracer can wrap it.
     - name: Run Fuzzers
-      uses: google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master
       env:
         OF_SANITIZER: ${{ matrix.sanitizer }}
-      with:
-        oss-fuzz-project-name: 'rtpproxy'
-        fuzz-seconds: 1200
-        dry-run: false
-        parallel-fuzzing: true
-        language: c
-        sanitizer: ${{ matrix.sanitizer }}
-        output-sarif: true
+        CI_MONITOR_CONTAINER: cifuzz-run-fuzzers
+        OSS_FUZZ_PROJECT_NAME: 'rtpproxy'
+        LANGUAGE: c
+        FUZZ_SECONDS: 1200
+        DRY_RUN: false
+        SANITIZER: ${{ matrix.sanitizer }}
+        MODE: code-change
+        LOW_DISK_SPACE: 'True'
+        REPORT_UNREPRODUCIBLE_CRASHES: False
+        MINIMIZE_CRASHES: False
+        CIFUZZ_DEBUG: 'True'
+        CFL_PLATFORM: github
+        PARALLEL_FUZZING: true
+        OUTPUT_SARIF: true
+        REPORT_TIMEOUTS: true
+        REPORT_OOMS: true
+      run: python3 scripts/monitor-ci-test.py sh -x scripts/fuzz/run-cifuzz.sh
     - name: Collect fuzzing coverage
       if: matrix.sanitizer == 'coverage'
       run: sh -x scripts/fuzz/collect-coverage.sh

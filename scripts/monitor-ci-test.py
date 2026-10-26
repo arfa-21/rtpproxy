@@ -10,6 +10,8 @@ import subprocess
 import sys
 from threading import Event, Thread
 
+CONTAINER = os.environ.get('CI_MONITOR_CONTAINER', 'rtpproxy-tests')
+
 
 @contextmanager
 def trace_signals():
@@ -84,7 +86,7 @@ def sample():
     try:
         result = subprocess.run(
             ['docker', 'stats', '--no-stream', '--format', '{{json .}}',
-             'rtpproxy-tests'], capture_output=True, text=True, timeout=5,
+             CONTAINER], capture_output=True, text=True, timeout=5,
             check=True,
         )
         metrics['container'] = json.loads(result.stdout)
